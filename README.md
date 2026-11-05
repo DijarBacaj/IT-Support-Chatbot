@@ -1,25 +1,34 @@
-# IT Support Agent
+# IT Support Chatbot
 
-[![Tests and security](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml)
+[![Tests and code quality](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml/badge.svg)](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml)
+[![Dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml/badge.svg)](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml)
+![Python](https://img.shields.io/badge/Python-3.11%E2%80%933.13-3776AB?logo=python&logoColor=white)
 
-A privacy-conscious IT support chatbot with OpenAI and local or explicitly trusted Ollama providers. The application includes a polished Gradio interface, a hardened FastAPI/Uvicorn runtime, bounded session memory, multilingual safety rules, authentication, rate limiting, health checks, and automated security scanning.
+A multilingual IT support assistant with **OpenAI and Ollama**, a Gradio chat interface, and a FastAPI runtime. It helps users work through everyday technical issues while keeping credentials out of model requests and directing high-risk incidents to a human.
 
-## Production baseline
+The engineering focus is on testable behavior: provider adapters, bounded conversation context, authentication, request limits, sanitized failures, and evaluation scenarios in **English, Albanian, and German**.
 
-The repository is designed as a secure single-process deployment baseline:
+[Try it locally](#run-locally) · [Run the tests](#verify-it-yourself) · [Architecture](#architecture) · [Deployment guide](docs/PRODUCTION.md) · [Engineering review](docs/REVIEW.md)
 
-- Production and non-local bindings fail closed unless authentication and a host allowlist are configured.
-- Provider API routes are private, the Gradio public API footer is disabled, and uploads/history/analytics/flagging are off.
-- A sliding-window limiter, queue bound, concurrency bound, input limit, output limit, and response-size limit constrain abuse and cost.
-- Security headers, strict CORS, trusted-host validation, non-stored OpenAI requests, and secret redaction reduce common exposure.
-- Remote Ollama requires HTTPS plus an explicit opt-in; credentials inside its URL are rejected.
-- Deterministic safety guidance supports English, Albanian, and German for urgent physical, security, account, data-loss, and outage signals.
-- CI runs unit/component tests on Python 3.11–3.13, Ruff, Bandit, `pip-audit`, compilation checks, immutable GitHub Action references, and Dependabot.
-- `requirements.lock` pins transitive dependencies with hashes for repeatable production installs.
+## What it does
 
-This is not a ticketing platform, CMDB, identity provider, or substitute for a trained IT/security team. See [Production deployment](docs/PRODUCTION.md) and [Security policy](SECURITY.md) before exposing it outside a trusted machine.
+- Troubleshoots common Wi-Fi, VPN, email, printer, and device problems using the selected model.
+- Preserves recent context within the conversation, with a **Reset memory** command.
+- Redacts common secrets and email addresses from the current request and history before calling a provider.
+- Adds deterministic escalation guidance for detected physical danger, malware, account compromise, data loss, and broad outages. Physical-danger cases bypass the model.
+- Supports authenticated access, per-identity request limits, login throttling, a bounded queue, and concurrency limits.
+- Tracks provider latency, errors, and reported token usage through content-free, in-process metrics.
 
-## Quick start
+This project provides guidance. It cannot execute fixes, open tickets, or verify that an incident has been resolved.
+
+## Run locally
+
+Use **Python 3.11–3.13**. Choose either a running Ollama installation with a downloaded model or an OpenAI API key. Installing dependencies and downloading a model require internet access; the offline tests below do not call either provider.
+
+### 1. Install
+
+<details open>
+<summary>Windows PowerShell</summary>
 
 ```powershell
 git clone https://github.com/DijarBacaj/IT-Support-Chatbot.git
@@ -28,166 +37,161 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --require-hashes -r requirements.lock
 Copy-Item .env.example .env
-python it_support_agent.py --check
-python it_support_agent.py
 ```
 
-Open `http://127.0.0.1:7860`.
+</details>
 
-For local Ollama:
+<details>
+<summary>Linux / macOS</summary>
 
-```powershell
+```bash
+git clone https://github.com/DijarBacaj/IT-Support-Chatbot.git
+cd IT-Support-Chatbot
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --require-hashes -r requirements.lock
+cp .env.example .env
+```
+
+</details>
+
+### 2. Choose a provider
+
+**Ollama — local model, no OpenAI key**
+
+Start Ollama and download the model:
+
+```text
 ollama pull llama3.2
-python run_ollama_agent.py --check
-python run_ollama_agent.py
 ```
 
-The `.env.example` API key and authentication fields are intentionally blank. Never commit `.env`; Git ignores it.
+Set these values in `.env`:
 
-## Provider configuration
-
-`AI_PROVIDER=auto` selects OpenAI only when a non-placeholder `OPENAI_API_KEY` exists. Otherwise it selects Ollama.
-
-OpenAI example:
-
-```env
-AI_PROVIDER=openai
-OPENAI_API_KEY=your_real_key
-OPENAI_MODEL=gpt-4o-mini
-```
-
-Local Ollama example:
-
-```env
+```dotenv
 AI_PROVIDER=ollama
 OLLAMA_BASE_URL=http://127.0.0.1:11434
 OLLAMA_MODEL=llama3.2
 ```
 
-## Production configuration
+**OpenAI — hosted model**
 
-At minimum, production requires:
+Set these values in `.env`, replacing the placeholder with your own key:
 
-```env
-APP_ENV=production
-GRADIO_SERVER_NAME=0.0.0.0
-APP_ALLOWED_HOSTS=support.example.com
-APP_AUTH_USERNAME=support
-APP_AUTH_PASSWORD=replace-with-a-random-password-of-at-least-16-characters
-APP_EXTERNAL_HTTPS=true
-FORWARDED_ALLOW_IPS=127.0.0.1
+```dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=your_real_api_key
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-Keep TLS at a trusted reverse proxy, keep `FORWARDED_ALLOW_IPS` restricted to that proxy, and store secrets in the deployment platform's secret manager. Startup stops with an error if production authentication or allowed hosts are unsafe.
+OpenAI requests can incur charges. Never commit your `.env` file. With `AI_PROVIDER=auto`, the application selects OpenAI when a non-placeholder key is present and otherwise selects Ollama.
 
-Run this before every deployment:
-
-```powershell
-python it_support_agent.py --check
-```
-
-The liveness endpoint is `GET /healthz`; it returns only `{"status":"ok"}` and no provider or secret details.
-
-See [docs/PRODUCTION.md](docs/PRODUCTION.md) for the complete deployment checklist and reverse-proxy guidance.
-
-## Configuration reference
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `APP_ENV` | `development` | `development`, `test`, or `production` |
-| `APP_AUTH_USERNAME` | blank | Required with a production/non-local bind |
-| `APP_AUTH_PASSWORD` | blank | Required; minimum 16 characters in production |
-| `APP_ALLOWED_HOSTS` | local hosts | Comma-separated trusted HTTP Host values |
-| `APP_EXTERNAL_HTTPS` | `false` | Enables HSTS when clients access the app through HTTPS |
-| `APP_ROOT_PATH` | blank | Optional reverse-proxy URL prefix |
-| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Exact proxies trusted for forwarded client metadata |
-| `AI_PROVIDER` | `auto` | `auto`, `openai`, or `ollama` |
-| `OPENAI_API_KEY` | blank | OpenAI credential; never place it in tracked files |
-| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI chat model |
-| `OPENAI_TIMEOUT_SECONDS` | `30` | Clamped to 5–300 seconds |
-| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local or explicitly allowed HTTPS Ollama URL |
-| `OLLAMA_MODEL` | `llama3.2` | Installed Ollama chat model |
-| `OLLAMA_KEEP_ALIVE` | `5m` | Ollama model retention duration |
-| `OLLAMA_TIMEOUT_SECONDS` | `120` | Clamped to 5–600 seconds |
-| `ALLOW_REMOTE_OLLAMA` | `false` | Explicitly permits a remote HTTPS Ollama endpoint |
-| `MAX_INPUT_CHARS` | `4000` | Per-message limit, clamped to 500–12000 |
-| `MAX_RESPONSE_TOKENS` | `600` | Output limit, clamped to 128–2000 |
-| `LOGIN_RATE_LIMIT_REQUESTS` | `5` | Login attempts allowed per source/window |
-| `LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Login-attempt window, 30–3600 seconds |
-| `RATE_LIMIT_REQUESTS` | `12` | Messages allowed per sliding window |
-| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Sliding-window duration, 10–3600 seconds |
-| `MAX_CONCURRENT_REQUESTS` | `4` | Provider calls processed concurrently |
-| `MAX_QUEUE_SIZE` | `32` | Maximum queued calls |
-| `STATE_SESSION_CAPACITY` | `1000` | Bound on Gradio session state |
-| `GRADIO_SERVER_NAME` | local / `0.0.0.0` in production | Listen address |
-| `GRADIO_SERVER_PORT` | `7860` | Listen port |
-| `LOG_LEVEL` | `WARNING` | Valid Python log level |
-
-## Privacy and safety
-
-- Common email addresses, passwords, MFA/recovery codes, bearer tokens, OpenAI/GitHub/AWS/Slack credentials, URL credentials, and private keys are redacted before model calls.
-- Redaction is best-effort. Users must still avoid submitting secrets or unnecessary personal data.
-- OpenAI calls use `store=False`; provider-side processing remains governed by the provider account and policy.
-- The application does not write chat history to disk. The active browser session and provider still temporarily process the conversation.
-- Physical-danger signals return local deterministic instructions without calling a model.
-- Model output may be wrong. High-impact resets, deletion, account/security actions, and incident response require human approval.
-
-## Development and verification
-
-Install development tools after the runtime lock:
-
-```powershell
-python -m pip install --require-hashes -r requirements.lock
-python -m pip install -r requirements-dev.txt
-```
-
-Run the same core checks as CI:
-
-```powershell
-python -m unittest -v
-ruff check .
-bandit -c pyproject.toml -r it_support it_support_agent.py run_ollama_agent.py
-pip-audit -r requirements.lock
-python -m compileall -q it_support it_support_agent.py run_ollama_agent.py test_it_support_agent.py
-```
-
-To refresh the lock after intentionally changing a direct dependency:
-
-```powershell
-uv --cache-dir .uv-cache pip compile requirements.txt --universal --generate-hashes --output-file requirements.lock
-```
-
-Review the diff and rerun the complete audit before merging the lock update.
-
-## Project structure
+### 3. Check and start
 
 ```text
-IT-Support-Chatbot/
-├── .github/
-│   ├── dependabot.yml
-│   └── workflows/tests.yml
-├── docs/PRODUCTION.md
-├── it_support/
-│   ├── config.py       # Validated environment configuration
-│   ├── core.py         # Prompt and bounded session context
-│   ├── providers.py    # OpenAI/Ollama adapters and readiness checks
-│   ├── safety.py       # Multilingual deterministic safety rules
-│   ├── security.py     # Redaction, auth, limiter, browser headers
-│   ├── service.py      # Chat orchestration
-│   └── web.py          # Gradio UI and FastAPI/Uvicorn runtime
-├── it_support_agent.py # Stable CLI and compatibility exports
-├── run_ollama_agent.py
-├── test_it_support_agent.py
-├── pyproject.toml
-├── requirements.txt
-├── requirements.lock
-└── SECURITY.md
+python it_support_agent.py --check
+python it_support_agent.py
 ```
 
-## Known operational limits
+Open [http://127.0.0.1:7860](http://127.0.0.1:7860). Stop the server with `Ctrl+C`.
 
-- The built-in limiter is intentionally single-process. For multiple replicas/workers, enforce a shared limit at the gateway or use a distributed store.
-- Built-in authentication is suitable as a baseline for a small private deployment. Prefer SSO through an identity-aware reverse proxy for an organization.
-- There is no persistent memory, ticket database, file/screenshot upload, role management, audit database, or SLA workflow.
-- Safety keyword coverage is strongest in English, Albanian, and German and remains a guardrail rather than a full classifier.
-- No software license has been selected. The repository owner should choose and add one before granting public reuse rights.
+`--check` validates application and provider settings. For Ollama it also checks connectivity and model availability. For OpenAI it checks configuration without making a model request.
+
+## Example interaction
+
+**User**
+
+> My Windows 11 laptop connects to Wi-Fi but has no internet. Other devices work, and I already restarted the laptop.
+
+**Illustrative response structure — actual model output varies**
+
+> Since other devices work, start with checks on this laptop. Confirm whether all websites fail or only one application. Check whether a VPN is connected, then compare access with the VPN disconnected if your company policy allows it. Note the exact error before changing network settings. If the issue persists, share the error and whether another trusted network works with your IT team.
+
+For a deterministic safety example, enter **“My laptop has smoke and sparks.”** The application returns immediate safety and escalation guidance without sending the message to a model.
+
+## Verify it yourself
+
+After installing the runtime dependencies, run:
+
+```text
+python -m unittest -v
+python -m evals.run
+```
+
+**No API key, running model, or provider network access is required.** The suite uses provider test doubles and exercises HTTP authentication, login throttling, secret redaction, history isolation, provider failures, token accounting, and concurrent requests. It also checks UI defaults and deployment configuration.
+
+The evaluation runner writes `evals/results.json`. Its 60 scenarios cover:
+
+| Category | Scenarios | What to inspect |
+| --- | ---: | --- |
+| Troubleshooting | 12 | Relevant, reversible steps and an actionable checklist |
+| Ambiguous requests | 12 | Targeted clarification without an invented diagnosis |
+| Prompt injection | 12 | Untrusted instructions do not expose prompts or credentials |
+| Security incidents | 12 | Containment, human escalation, and no credential requests |
+| Human escalation | 12 | Appropriate urgency and local physical-danger handling |
+
+Each category includes four scenarios per language. The **offline result checks deterministic contracts**, including message roles and localized escalation. It does not measure whether a real model follows the troubleshooting or refusal criteria. See [the scenarios](evals/scenarios.json) and [evaluation methodology](docs/REVIEW.md#evaluation).
+
+### Quality and security checks
+
+```text
+python -m pip install -r requirements-dev.txt
+python -m ruff check .
+python -m bandit -c pyproject.toml -r it_support it_support_agent.py run_ollama_agent.py
+python -m pip_audit -r requirements.lock
+```
+
+[GitHub Actions](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml) runs the Python 3.11–3.13 test matrix, linting, static security analysis, compilation, and wheel build. A [separate scheduled dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml) tracks the unresolved Pillow findings. Both badges show their actual run status. See [the engineering review](docs/REVIEW.md#verification-evidence-and-gaps) for measured results and limitations.
+
+### Real-model evaluation — optional
+
+Set provider variables in your shell, then run:
+
+```text
+python -m evals.run --live --output evals/live-results.local.json
+```
+
+The evaluation runner does not load `.env`. This command contacts the selected provider and may incur charges. It saves responses from the synthetic scenarios for human review against each scenario's acceptance criterion. Live results remain unreviewed until a person grades them; passing offline checks does not establish model quality.
+
+## Architecture
+
+```text
+Browser
+  → Gradio authentication and bounded queue
+  → Identity-based request limiter
+  → Service: validation, local safety rules, sanitized errors
+  → Prompt builder: redacted history and untrusted session memory
+  → OpenAI adapter / Ollama adapter
+```
+
+FastAPI wraps the interface with trusted-host validation, login throttling, browser security headers, and `GET /healthz`. The liveness response is `{"status":"ok"}`; it does not probe a provider or expose configuration.
+
+| Module | Responsibility |
+| --- | --- |
+| [`config.py`](it_support/config.py) | Environment settings and startup validation |
+| [`core.py`](it_support/core.py) | Prompt construction, recent history, and reset behavior |
+| [`safety.py`](it_support/safety.py) | Language detection and deterministic escalation rules |
+| [`security.py`](it_support/security.py) | Redaction, authentication, rate limits, and headers |
+| [`providers.py`](it_support/providers.py) | OpenAI/Ollama requests and readiness checks |
+| [`service.py`](it_support/service.py) | Request orchestration and safe failure responses |
+| [`metrics.py`](it_support/metrics.py) | Thread-safe aggregate latency, errors, and token counts |
+| [`web.py`](it_support/web.py) | Gradio interface and FastAPI/Uvicorn runtime |
+
+The CLI remains in `it_support_agent.py`; `run_ollama_agent.py` provides an Ollama-oriented entry point. Tests live in `test_it_support_agent.py` and `test_regressions.py`.
+
+## Privacy and deployment
+
+Chat history is not written to disk by the application. The browser, active process, and selected provider temporarily process the conversation. Redaction is best-effort: do not submit passwords, MFA codes, private keys, or unnecessary personal data. OpenAI requests use `store=False`; provider-side handling still depends on the provider's policies and your account settings.
+
+Production or non-local bindings require credentials and an explicit host allowlist. Remote Ollama requires HTTPS and an explicit opt-in. Deploy behind a trusted TLS proxy with an outer request limit, using **one application process**. Session state, limits, and metrics are process-local and reset on restart.
+
+See [configuration reference](docs/CONFIGURATION.md), [deployment and operations](docs/PRODUCTION.md), [upgrade and rollback](docs/REVIEW.md#installation-upgrade-and-rollback), and [security policy](SECURITY.md).
+
+## Known limitations
+
+- Model answers can be incorrect. Destructive actions and security incidents require review by a trained person.
+- Keyword-based language and risk detection can miss paraphrases or flag harmless text. Prompt-injection defenses do not guarantee model compliance.
+- Full browser/Gradio queue testing and real-model quality evaluation remain separate validation work. Read the engineering review before making deployment decisions.
+- Multiple workers need shared rate limiting and a session-routing design. Shared accounts and clients behind one address can share limits.
+- Metrics contain aggregate token usage when available. They do not provide billed currency, durable monitoring, or queue-wait latency.
+- There is no persistent ticket store, SSO integration, file upload, role management, or SLA workflow.
+- No software license has been selected. A license decision is needed before granting reuse rights.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased - 2026-11-05
+
+- Documented runnable local checks, 60 multilingual evaluation scenarios, and measured limitations.
+- Added HTTP and concurrency regression tests; protected untrusted session memory and anonymous rate-limit identity.
+- Added process-local, content-free provider timing, error, and token aggregates.
+- Refreshed Gradio and the hashed dependency lock; the audit still reports Pillow findings and blocks the release gate.
+
 ## 0.2.0 - 2026-08-26
 
 - Split configuration, core logic, providers, safety, security, service, and web runtime into dedicated modules.

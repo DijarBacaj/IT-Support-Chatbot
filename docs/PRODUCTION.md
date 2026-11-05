@@ -2,6 +2,10 @@
 
 This guide describes the supported production baseline: one application process behind a TLS-terminating reverse proxy or private application gateway.
 
+Current dependency audit findings remain unresolved (see [engineering review](REVIEW.md)).
+The release gate below therefore blocks a new production deployment until the
+affected dependency can be upgraded and the complete gate passes.
+
 ## 1. Prepare a clean environment
 
 - Use Python 3.11, 3.12, or 3.13 in a dedicated virtual environment.
