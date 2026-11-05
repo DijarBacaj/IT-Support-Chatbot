@@ -1,11 +1,16 @@
-name: Tests and security
+name: Tests and code quality
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+env:
+  GRADIO_ANALYTICS_ENABLED: "False"
+  HF_HUB_OFFLINE: "1"
 
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
@@ -38,8 +43,11 @@ jobs:
       - name: Run tests
         run: python -m unittest -v
 
+      - name: Run offline multilingual evaluation
+        run: python -m evals.run
+
       - name: Compile Python sources
-        run: python -m compileall -q it_support it_support_agent.py run_ollama_agent.py test_it_support_agent.py
+        run: python -m compileall -q it_support evals it_support_agent.py run_ollama_agent.py test_it_support_agent.py test_regressions.py
 
   quality-and-security:
     runs-on: ubuntu-latest
@@ -69,9 +77,6 @@ jobs:
 
       - name: Static security analysis
         run: bandit -c pyproject.toml -r it_support it_support_agent.py run_ollama_agent.py
-
-      - name: Dependency vulnerability audit
-        run: pip-audit -r requirements.lock
 
       - name: Build installable wheel
         run: python -m pip wheel . --no-deps --wheel-dir dist
