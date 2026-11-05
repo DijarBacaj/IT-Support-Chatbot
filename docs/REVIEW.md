@@ -59,7 +59,10 @@ release. No real-model evaluation was performed in this review.
   [upstream Gradio issue](https://github.com/gradio-app/gradio/issues/13999).
   The separate dependency-audit workflow is expected to fail until a compatible fix
   is available. Test and audit badges display their independent outcomes.
-- Remote GitHub CI was not run at the time of this local review.
+- The first published run passed all three Python test jobs and the quality job:
+  [test and quality results](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050064683).
+  The separate [dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050064544)
+  failed at its vulnerability scan, as expected from the local audit.
 - No full browser/Gradio queue protocol end-to-end test, real provider run, load
   capacity claim or production readiness claim is made. HTTP authentication and
   concurrent service/adapter integration are separate test boundaries.
