@@ -27,6 +27,7 @@ from .config import (
     validate_web_security_configuration,
 )
 from .core import build_messages
+from .metrics import measured, usage
 from .security import safe_config_value, safe_status_value
 
 MAX_PROVIDER_RESPONSE_BYTES = 1_000_000
@@ -42,6 +43,7 @@ def create_openai_client() -> Any:
     return OpenAI(api_key=get_openai_api_key(), timeout=get_openai_timeout_seconds())
 
 
+@measured("openai")
 def ask_it_agent(client: Any, message: str, history: Any) -> str:
     response = client.chat.completions.create(
         model=get_model_name(),
@@ -51,6 +53,8 @@ def ask_it_agent(client: Any, message: str, history: Any) -> str:
         temperature=0.25,
         timeout=get_openai_timeout_seconds(),
     )
+    counts = getattr(response, "usage", None)
+    usage("openai", getattr(counts, "prompt_tokens", None), getattr(counts, "completion_tokens", None))
     return response.choices[0].message.content or "I could not generate a response."
 
 
@@ -65,6 +69,7 @@ def _read_limited_response(response: Any) -> str:
     return body.decode("utf-8")
 
 
+@measured("ollama")
 def ask_ollama_agent(
     message: str,
     history: Any,
@@ -95,8 +100,11 @@ def ask_ollama_agent(
         data = json.loads(body)
     except json.JSONDecodeError as exc:
         raise RuntimeError("Ollama returned a response that was not valid JSON.") from exc
+    if not isinstance(data, dict):
+        raise RuntimeError("Ollama returned an invalid response object.")
     if "error" in data:
         raise RuntimeError("Ollama returned an error. Check that the model is pulled.")
+    usage("ollama", data.get("prompt_eval_count"), data.get("eval_count"))
     message_data = data.get("message")
     if isinstance(message_data, dict):
         content = message_data.get("content")

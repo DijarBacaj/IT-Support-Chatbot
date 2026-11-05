@@ -211,5 +211,5 @@ def launch_app() -> None:
         forwarded_allow_ips=get_forwarded_allow_ips(),
         server_header=False,
         date_header=False,
-        access_log=True,
+        access_log=False,
     )

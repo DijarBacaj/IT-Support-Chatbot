@@ -125,9 +125,6 @@ def request_identity(request: Any) -> str:
     username = getattr(request, "username", None)
     if isinstance(username, str) and username:
         return f"user:{username}"
-    session_hash = getattr(request, "session_hash", None)
-    if isinstance(session_hash, str) and session_hash:
-        return f"session:{session_hash}"
     client = getattr(request, "client", None)
     host = getattr(client, "host", None)
     if isinstance(host, str) and host:
@@ -141,8 +138,8 @@ def build_auth_callback(credentials: tuple[str, str] | None) -> Callable[[str, s
     expected_username, expected_password = credentials
 
     def authenticate(username: str, password: str) -> bool:
-        return secrets.compare_digest(username, expected_username) and secrets.compare_digest(
-            password, expected_password
+        return secrets.compare_digest(username.encode(), expected_username.encode()) and secrets.compare_digest(
+            password.encode(), expected_password.encode()
         )
 
     return authenticate
