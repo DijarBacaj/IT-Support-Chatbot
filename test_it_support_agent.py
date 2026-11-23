@@ -64,8 +64,7 @@ class ITSupportAgentTests(unittest.TestCase):
         fake_aws_key = "AK" + "IAABCDEFGHIJKLMNOP"
         fake_slack_token = "xox" + "b-123456789012-abcdefghijklmnop"
         fake_private_key = (
-            "-----BEGIN PRIVATE" + " KEY-----\nvery-secret-material\n"
-            "-----END PRIVATE" + " KEY-----"
+            "-----BEGIN PRIVATE" + " KEY-----\nvery-secret-material\n-----END PRIVATE" + " KEY-----"
         )
         text = (
             f"GitHub {fake_github_token} "
@@ -432,21 +431,6 @@ class ITSupportAgentTests(unittest.TestCase):
 
         self.assertFalse(is_healthy)
         self.assertIn("placeholder", report)
-
-    def test_demo_uses_private_chat_defaults(self):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", ResourceWarning)
-            demo = agent.build_demo()
-            self.addCleanup(demo.close)
-
-            self.assertFalse(demo.analytics_enabled)
-            self.assertFalse(demo.save_history)
-            self.assertEqual(demo.flagging_mode, "never")
-            self.assertTrue(demo.chatbot.sanitize_html)
-            self.assertFalse(demo.chatbot.allow_file_downloads)
-            self.assertEqual(demo.chatbot.layout, "bubble")
-            self.assertEqual(demo.textbox.submit_btn, "Send")
-            self.assertEqual(demo.api_visibility, "private")
 
     def test_rate_limiter_uses_a_sliding_window(self):
         limiter = agent.SlidingWindowRateLimiter(limit=2, window_seconds=10)

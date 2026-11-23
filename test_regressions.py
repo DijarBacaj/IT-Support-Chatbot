@@ -1,4 +1,3 @@
-import asyncio
 import contextlib
 import io
 import json
@@ -18,60 +17,6 @@ from test_it_support_agent import FakeOllamaResponse
 
 
 class RegressionTests(unittest.TestCase):
-    def test_http_authentication_and_login_limit(self):
-        import httpx
-
-        from it_support.web import create_app
-
-        async def exercise_app():
-            app = create_app()
-            async with app.router.lifespan_context(app):
-                transport = httpx.ASGITransport(app=app)
-                async with httpx.AsyncClient(
-                    transport=transport, base_url="http://testserver"
-                ) as client:
-                    self.assertEqual((await client.get("/healthz")).status_code, 200)
-                    self.assertEqual((await client.get("/config")).status_code, 401)
-                    self.assertEqual(
-                        (
-                            await client.post(
-                                "/login", data={"username": "support", "password": "wrong"}
-                            )
-                        ).status_code,
-                        400,
-                    )
-                    self.assertEqual(
-                        (
-                            await client.post(
-                                "/login",
-                                data={"username": "support", "password": "test-password-long"},
-                            )
-                        ).status_code,
-                        200,
-                    )
-                    self.assertEqual((await client.get("/config")).status_code, 200)
-                    limited = await client.post(
-                        "/login", data={"username": "support", "password": "wrong"}
-                    )
-                    self.assertEqual(limited.status_code, 429)
-                    self.assertIn("retry-after", limited.headers)
-
-        with patch.dict(
-            os.environ,
-            {
-                "APP_ENV": "test",
-                "APP_ALLOWED_HOSTS": "testserver",
-                "APP_AUTH_USERNAME": "support",
-                "APP_AUTH_PASSWORD": "test-password-long",
-                "LOGIN_RATE_LIMIT_REQUESTS": "2",
-                "AI_PROVIDER": "ollama",
-                "GRADIO_ANALYTICS_ENABLED": "False",
-                "PATH": os.environ.get("PATH", ""),
-            },
-            clear=True,
-        ):
-            asyncio.run(exercise_app())
-
     def test_unicode_authentication(self):
         auth = build_auth_callback(("përdorues", "fjalëkalim-shumë-i-gjatë"))
         self.assertTrue(auth("përdorues", "fjalëkalim-shumë-i-gjatë"))

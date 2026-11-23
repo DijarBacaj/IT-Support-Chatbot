@@ -4,17 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "it-support-chatbot"
-version = "0.2.0"
+version = "0.3.0"
 description = "A privacy-conscious IT support chatbot with OpenAI and Ollama providers."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi==0.136.1",
-  "gradio==6.31.0",
   "openai==2.37.0",
   "python-dotenv==1.2.2",
   "uvicorn==0.47.0",
-  "audioop-lts==0.2.2; python_version >= '3.13'",
 ]
 
 [project.scripts]
@@ -25,6 +23,9 @@ py-modules = ["it_support_agent", "run_ollama_agent"]
 
 [tool.setuptools.packages.find]
 include = ["it_support*"]
+
+[tool.setuptools.package-data]
+it_support = ["static/*.html", "static/*.css", "static/*.js"]
 
 [tool.ruff]
 target-version = "py311"

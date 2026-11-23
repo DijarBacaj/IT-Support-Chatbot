@@ -12,7 +12,6 @@ from it_support.providers import *
 from it_support.safety import *
 from it_support.security import *
 from it_support.service import *
-from it_support.web import build_demo as build_demo
 from it_support.web import create_app as create_app
 from it_support.web import launch_app
 

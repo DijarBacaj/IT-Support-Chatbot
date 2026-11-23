@@ -28,18 +28,19 @@ Copy `.env.example` to `.env` for local use. The CLI reads the `.env` file in th
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Sliding-window duration, clamped to 10–3600 seconds |
 | `MAX_CONCURRENT_REQUESTS` | `4` | Provider calls processed concurrently, clamped to 1–32 |
 | `MAX_QUEUE_SIZE` | `32` | Maximum queued calls, clamped to 1–500 |
-| `STATE_SESSION_CAPACITY` | `1000` | Bound on Gradio session state, clamped to 10–10000 |
-| `GRADIO_SERVER_NAME` | `127.0.0.1`; `0.0.0.0` in production | Listen address; `.env.example` explicitly selects loopback |
-| `GRADIO_SERVER_PORT` | `7860` | Listen port |
+| `STATE_SESSION_CAPACITY` | `1000` | Bound on in-memory sessions, clamped to 10–10000 |
+| `APP_SERVER_NAME` | `127.0.0.1`; `0.0.0.0` in production | Listen address; `.env.example` explicitly selects loopback |
+| `APP_SERVER_PORT` | `7860` | Listen port |
 | `LOG_LEVEL` | `WARNING` | Valid Python log level |
 
 `OPENAI_MAX_RESPONSE_TOKENS` is accepted as a legacy fallback when `MAX_RESPONSE_TOKENS` is unset. Prefer the provider-neutral setting for new installations.
+`GRADIO_SERVER_NAME` and `GRADIO_SERVER_PORT` remain accepted as legacy fallbacks; use `APP_SERVER_NAME` and `APP_SERVER_PORT` for new installations.
 
 ## Production example
 
 ```dotenv
 APP_ENV=production
-GRADIO_SERVER_NAME=0.0.0.0
+APP_SERVER_NAME=0.0.0.0
 APP_ALLOWED_HOSTS=support.example.com
 APP_AUTH_USERNAME=support
 APP_AUTH_PASSWORD=replace-with-a-random-password-of-at-least-16-characters

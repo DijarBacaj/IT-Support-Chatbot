@@ -19,7 +19,7 @@ Do not test against systems or accounts you do not own or have explicit permissi
 ## Security design
 
 - Production and non-local bindings require authentication and explicit trusted hosts.
-- The public Gradio API surface, file uploads/downloads, analytics, saved history, monitoring, MCP, and flagging are disabled.
+- The browser API uses server-owned sessions, CSRF checks, and no file upload route; chat history remains in memory only.
 - Requests are bounded by input, response, queue, concurrency, rate, and provider-response-size limits.
 - Common secrets are redacted before model calls; raw provider exception details and chat text are not logged.
 - OpenAI requests use `store=False`; remote Ollama requires HTTPS and explicit opt-in.

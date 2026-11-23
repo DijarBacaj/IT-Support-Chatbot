@@ -149,14 +149,15 @@ def get_max_response_tokens() -> int:
 
 
 def get_server_port() -> int:
-    return clamp_int_env("GRADIO_SERVER_PORT", 7860, 1, 65535)
+    name = "APP_SERVER_PORT" if "APP_SERVER_PORT" in os.environ else "GRADIO_SERVER_PORT"
+    return clamp_int_env(name, 7860, 1, 65535)
 
 
 def get_server_name() -> str:
     # Production may listen on the container interface only after validation
     # enforces authentication and an explicit host allowlist.
     default = "0.0.0.0" if is_production() else "127.0.0.1"  # nosec B104
-    return os.getenv("GRADIO_SERVER_NAME", default).strip() or default
+    return os.getenv("APP_SERVER_NAME", os.getenv("GRADIO_SERVER_NAME", default)).strip() or default
 
 
 def get_root_path() -> str | None:

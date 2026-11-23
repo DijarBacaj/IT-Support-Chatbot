@@ -4,7 +4,7 @@
 [![Dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml/badge.svg)](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml)
 ![Python](https://img.shields.io/badge/Python-3.11%E2%80%933.13-3776AB?logo=python&logoColor=white)
 
-A multilingual IT support assistant with **OpenAI and Ollama**, a Gradio chat interface, and a FastAPI runtime. It helps users work through everyday technical issues while keeping credentials out of model requests and directing high-risk incidents to a human.
+A multilingual IT support assistant with **OpenAI and Ollama**, a browser chat interface, and a FastAPI runtime. It helps users work through everyday technical issues while keeping common credentials out of model requests and directing high-risk incidents to a human.
 
 The engineering focus is on testable behavior: provider adapters, bounded conversation context, authentication, request limits, sanitized failures, and evaluation scenarios in **English, Albanian, and German**.
 
@@ -16,7 +16,7 @@ The engineering focus is on testable behavior: provider adapters, bounded conver
 - Preserves recent context within the conversation, with a **Reset memory** command.
 - Redacts common secrets and email addresses from the current request and history before calling a provider.
 - Adds deterministic escalation guidance for detected physical danger, malware, account compromise, data loss, and broad outages. Physical-danger cases bypass the model.
-- Supports authenticated access, per-identity request limits, login throttling, a bounded queue, and concurrency limits.
+- Supports authenticated access, isolated server-side sessions, CSRF protection, per-identity request limits, login throttling, and bounded concurrency.
 - Tracks provider latency, errors, and reported token usage through content-free, in-process metrics.
 
 This project provides guidance. It cannot execute fixes, open tickets, or verify that an incident has been resolved.
@@ -117,7 +117,7 @@ python -m unittest -v
 python -m evals.run
 ```
 
-**No API key, running model, or provider network access is required.** The suite uses provider test doubles and exercises HTTP authentication, login throttling, secret redaction, history isolation, provider failures, token accounting, and concurrent requests. It also checks UI defaults and deployment configuration.
+**No API key, running model, or provider network access is required.** The suite uses provider test doubles and exercises HTTP authentication, login throttling, secret redaction, history isolation, provider failures, token accounting, and concurrent requests. It also checks deployment configuration.
 
 The evaluation runner writes `evals/results.json`. Its 60 scenarios cover:
 
@@ -140,7 +140,7 @@ python -m bandit -c pyproject.toml -r it_support it_support_agent.py run_ollama_
 python -m pip_audit -r requirements.lock
 ```
 
-[GitHub Actions](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml) runs the Python 3.11–3.13 test matrix, linting, static security analysis, compilation, and wheel build. A [separate scheduled dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml) tracks the unresolved Pillow findings. Both badges show their actual run status. See [the engineering review](docs/REVIEW.md#verification-evidence-and-gaps) for measured results and limitations.
+[GitHub Actions](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/tests.yml) runs the Python 3.11–3.13 test matrix, linting, static security analysis, compilation, and wheel build. A [separate scheduled dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/workflows/dependency-audit.yml) checks the locked dependencies. Both badges show their actual run status. See [the engineering review](docs/REVIEW.md#verification-evidence-and-gaps) for measured results and limitations.
 
 ### Real-model evaluation — optional
 
@@ -156,14 +156,14 @@ The evaluation runner does not load `.env`. This command contacts the selected p
 
 ```text
 Browser
-  → Gradio authentication and bounded queue
-  → Identity-based request limiter
+  → FastAPI browser UI, session authentication and CSRF checks
+  → Identity-based request limiter and bounded concurrency
   → Service: validation, local safety rules, sanitized errors
   → Prompt builder: redacted history and untrusted session memory
   → OpenAI adapter / Ollama adapter
 ```
 
-FastAPI wraps the interface with trusted-host validation, login throttling, browser security headers, and `GET /healthz`. The liveness response is `{"status":"ok"}`; it does not probe a provider or expose configuration.
+FastAPI serves the interface with trusted-host validation, login throttling, browser security headers, and `GET /healthz`. The liveness response is `{"status":"ok"}`; it does not probe a provider or expose configuration.
 
 | Module | Responsibility |
 | --- | --- |
@@ -174,7 +174,7 @@ FastAPI wraps the interface with trusted-host validation, login throttling, brow
 | [`providers.py`](it_support/providers.py) | OpenAI/Ollama requests and readiness checks |
 | [`service.py`](it_support/service.py) | Request orchestration and safe failure responses |
 | [`metrics.py`](it_support/metrics.py) | Thread-safe aggregate latency, errors, and token counts |
-| [`web.py`](it_support/web.py) | Gradio interface and FastAPI/Uvicorn runtime |
+| [`web.py`](it_support/web.py) | Browser API, sessions, and FastAPI/Uvicorn runtime |
 
 The CLI remains in `it_support_agent.py`; `run_ollama_agent.py` provides an Ollama-oriented entry point. Tests live in `test_it_support_agent.py` and `test_regressions.py`.
 
@@ -190,7 +190,7 @@ See [configuration reference](docs/CONFIGURATION.md), [deployment and operations
 
 - Model answers can be incorrect. Destructive actions and security incidents require review by a trained person.
 - Keyword-based language and risk detection can miss paraphrases or flag harmless text. Prompt-injection defenses do not guarantee model compliance.
-- Full browser/Gradio queue testing and real-model quality evaluation remain separate validation work. Read the engineering review before making deployment decisions.
+- Full browser interaction and real-model quality evaluation remain separate validation work. Read the engineering review before making deployment decisions.
 - Multiple workers need shared rate limiting and a session-routing design. Shared accounts and clients behind one address can share limits.
 - Metrics contain aggregate token usage when available. They do not provide billed currency, durable monitoring, or queue-wait latency.
 - There is no persistent ticket store, SSO integration, file upload, role management, or SLA workflow.

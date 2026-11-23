@@ -8,10 +8,6 @@ on:
 permissions:
   contents: read
 
-env:
-  GRADIO_ANALYTICS_ENABLED: "False"
-  HF_HUB_OFFLINE: "1"
-
 concurrency:
   group: tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

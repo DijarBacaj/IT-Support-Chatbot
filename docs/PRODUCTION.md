@@ -2,9 +2,8 @@
 
 This guide describes the supported production baseline: one application process behind a TLS-terminating reverse proxy or private application gateway.
 
-Current dependency audit findings remain unresolved (see [engineering review](REVIEW.md)).
-The release gate below therefore blocks a new production deployment until the
-affected dependency can be upgraded and the complete gate passes.
+Review the current [engineering evidence](REVIEW.md) and run the release gate below
+against the exact version before any production deployment.
 
 ## 1. Prepare a clean environment
 
@@ -12,7 +11,7 @@ affected dependency can be upgraded and the complete gate passes.
 - Install `requirements.lock` with `--require-hashes`.
 - Run the application as a dedicated, non-administrator operating-system user.
 - Keep `.env`, logs, and any platform secret files readable only by that account.
-- Do not use Gradio share links for production.
+- Keep the service behind the configured trusted proxy and hostname.
 
 ```powershell
 python -m venv .venv
@@ -23,8 +22,8 @@ python -m venv .venv
 
 ```env
 APP_ENV=production
-GRADIO_SERVER_NAME=0.0.0.0
-GRADIO_SERVER_PORT=7860
+APP_SERVER_NAME=0.0.0.0
+APP_SERVER_PORT=7860
 APP_ALLOWED_HOSTS=support.example.com
 APP_AUTH_USERNAME=support
 APP_AUTH_PASSWORD=use-a-random-secret-of-at-least-16-characters
@@ -68,7 +67,7 @@ The built-in rate limiter is process-local. A gateway or shared rate-limit servi
 
 ## 5. Authentication
 
-The built-in Gradio authentication is a secure baseline for a small private installation. For an organization, prefer an identity-aware proxy with SSO, MFA, per-user access revocation, and centralized audit logs. Keep the built-in credentials enabled unless the deployment design has been reviewed and tested.
+The built-in session authentication is a baseline for a small private installation. For an organization, prefer an identity-aware proxy with SSO, MFA, per-user access revocation, and centralized audit logs. Keep the built-in credentials enabled unless the deployment design has been reviewed and tested.
 
 Never expose the application anonymously because unauthenticated traffic can consume provider tokens or local compute.
 
@@ -91,7 +90,7 @@ python -m unittest -v
 ruff check .
 bandit -c pyproject.toml -r it_support it_support_agent.py run_ollama_agent.py
 pip-audit -r requirements.lock
-python -m compileall -q it_support it_support_agent.py run_ollama_agent.py test_it_support_agent.py
+python -m compileall -q it_support evals it_support_agent.py run_ollama_agent.py test_it_support_agent.py test_regressions.py test_web.py
 python it_support_agent.py --check
 ```
 
