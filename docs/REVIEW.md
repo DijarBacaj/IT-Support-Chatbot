@@ -47,9 +47,10 @@ release. No real-model evaluation was performed in this review.
 ## Verification evidence and gaps
 
 - Windows, Python 3.12 and 3.13: 54 unittest tests passed per version after a
-  hashed-lock install. Coverage includes HTTP login/CSRF, login throttling,
-  concurrent and canceled requests, redaction, session isolation, provider failure
-  and token accounting. Python 3.11 clean-install validation remains for CI.
+  hashed-lock install. The published GitHub test matrix also passed on Python 3.11,
+  3.12 and 3.13. Coverage includes HTTP login/CSRF, login throttling, concurrent
+  and canceled requests, redaction, session isolation, provider failure and token
+  accounting.
 - Ruff passed; Bandit passed with an existing unmatched B104 suppression warning.
 - Python compilation, dependency compatibility (`pip check`) and a wheel build
   passed. The wheel contains all three browser assets.
@@ -62,10 +63,9 @@ release. No real-model evaluation was performed in this review.
   end-to-end HTTP request to the locally installed Ollama `llama3.2` model also
   returned `200` with a troubleshooting answer in 69.6 seconds. This is a smoke
   check, not a quality or throughput evaluation.
-- The previously published [test run](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050325102)
-  passed and [audit run](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050324764)
-  failed before this dependency change. New GitHub CI results must be checked after
-  publishing this revision.
+- The published [test and quality run](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/45278479795)
+  passed all four jobs, and the separate [dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/45278479578)
+  passed after the dependency change.
 - Browser visual interaction, real-model quality, load limits and production
   readiness remain unverified. HTTP integration tests exercise the request boundary.
 
