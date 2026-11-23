@@ -1,11 +1,12 @@
-# Engineering review — 2026-11-05
+# Engineering review — 2026-11-23
 
 ## Architecture and tradeoffs
 
-Browser → Gradio authentication/queue → identity limiter → service validation and
-local safety rules → redacted, bounded history → OpenAI or Ollama adapter.
-FastAPI supplies liveness, trusted-host checks, login throttling and browser headers.
-History is supplied per session; the service keeps no global conversation state.
+Browser → FastAPI session authentication and CSRF checks → identity limiter and
+bounded concurrency → service validation and local safety rules → redacted,
+bounded history → OpenAI or Ollama adapter. FastAPI also supplies liveness,
+trusted-host checks, login throttling and browser headers. The server owns each
+session's history; clients cannot submit another session's conversation as history.
 Untrusted memory is now a user message, never a system instruction. This reduces
 instruction privilege but does not prove resistance to model prompt injection.
 
@@ -45,27 +46,28 @@ release. No real-model evaluation was performed in this review.
 
 ## Verification evidence and gaps
 
-- Windows, Python 3.11, 3.12 and 3.13: 50 unittest tests passed per version, including HTTP login/protected
-  config/login throttling, concurrent service requests, secret redaction, session
-  history isolation, provider failure and token accounting.
+- Windows, Python 3.12 and 3.13: 54 unittest tests passed per version after a
+  hashed-lock install. Coverage includes HTTP login/CSRF, login throttling,
+  concurrent and canceled requests, redaction, session isolation, provider failure
+  and token accounting. Python 3.11 clean-install validation remains for CI.
 - Ruff passed; Bandit passed with an existing unmatched B104 suppression warning.
-- Python compilation, wheel build and `pip check` passed on the fresh 3.13 environment.
-- Initial restricted runs stalled on Gradio initialization; the completed full
-  runs used the normal host environment with Gradio analytics disabled.
-- Previous lock audit: 55 findings across four packages. The refreshed, installed
-  `requirements.lock` reduces this to 39 Pillow findings, recorded in
-  `evals/dependency-audit-summary.json`. Gradio 6.31.0 still requires Pillow <13,
-  blocking the version that fixes those findings. See the
-  [upstream Gradio issue](https://github.com/gradio-app/gradio/issues/13999).
-  The separate dependency-audit workflow is expected to fail until a compatible fix
-  is available. Test and audit badges display their independent outcomes.
-- The first published run passed all three Python test jobs and the quality job:
-  [test and quality results](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050064683).
-  The separate [dependency audit](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050064544)
-  failed at its vulnerability scan, as expected from the local audit.
-- No full browser/Gradio queue protocol end-to-end test, real provider run, load
-  capacity claim or production readiness claim is made. HTTP authentication and
-  concurrent service/adapter integration are separate test boundaries.
+- Python compilation, dependency compatibility (`pip check`) and a wheel build
+  passed. The wheel contains all three browser assets.
+- The local dependency audit on 2026-11-23 found zero known vulnerabilities in the
+  23 locked packages; see `evals/dependency-audit-summary.json`. The previous
+  Gradio-based lock had 39 Pillow findings. Removing Gradio/Pillow removed those
+  packages and their unused image-processing surface. A clean audit reflects the
+  database at scan time; continue the scheduled CI audit for new advisories.
+- The local app returned `200` from `/`, `/healthz` and `/api/session`. One
+  end-to-end HTTP request to the locally installed Ollama `llama3.2` model also
+  returned `200` with a troubleshooting answer in 69.6 seconds. This is a smoke
+  check, not a quality or throughput evaluation.
+- The previously published [test run](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050325102)
+  passed and [audit run](https://github.com/DijarBacaj/IT-Support-Chatbot/actions/runs/42050324764)
+  failed before this dependency change. New GitHub CI results must be checked after
+  publishing this revision.
+- Browser visual interaction, real-model quality, load limits and production
+  readiness remain unverified. HTTP integration tests exercise the request boundary.
 
 ## Installation, upgrade and rollback
 

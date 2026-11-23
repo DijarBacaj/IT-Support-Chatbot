@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from . import LOGGER
 from .config import (
     get_allowed_hosts,
     get_auth_credentials,
@@ -60,7 +61,7 @@ class ChatSession:
     username: str = ""
     history: list[dict[str, str]] = field(default_factory=list)
     last_seen: float = field(default_factory=time.monotonic)
-    lock: threading.Lock = field(default_factory=threading.Lock)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class SessionStore:
@@ -93,7 +94,8 @@ class SessionStore:
         )
         with self._lock:
             expired = [
-                key for key, value in self._sessions.items()
+                key
+                for key, value in self._sessions.items()
                 if now - value.last_seen >= SESSION_IDLE_SECONDS
             ]
             for key in expired:
@@ -170,7 +172,10 @@ def create_app(chat_func=chat) -> Any:
             raise HTTPException(status_code=403, detail="Invalid session token.")
 
     async def json_object(request: Request, maximum: int = MAX_JSON_BYTES) -> dict[str, Any]:
-        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        if (
+            request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            != "application/json"
+        ):
             raise HTTPException(status_code=415, detail="Expected JSON.")
         content = bytearray()
         async for chunk in request.stream():
@@ -206,12 +211,15 @@ def create_app(chat_func=chat) -> Any:
         session = sessions.get(request.cookies.get(COOKIE_NAME))
         if session is None:
             session = sessions.create(authenticated=authenticate is None)
-        response = JSONResponse({
-            "authenticated": session.authenticated,
-            "csrf_token": session.csrf_token,
-            "provider": get_runtime_status() if session.authenticated else None,
-            "can_logout": authenticate is not None,
-        })
+        response = JSONResponse(
+            {
+                "authenticated": session.authenticated,
+                "csrf_token": session.csrf_token,
+                "provider": get_runtime_status() if session.authenticated else None,
+                "can_logout": authenticate is not None,
+                "max_input_chars": get_max_input_chars(),
+            }
+        )
         set_cookie(response, session)
         return response
 
@@ -230,12 +238,15 @@ def create_app(chat_func=chat) -> Any:
             raise HTTPException(status_code=401, detail="Invalid credentials.")
         sessions.remove(session.token)
         authenticated_session = sessions.create(authenticated=True, username=username)
-        response = JSONResponse({
-            "authenticated": True,
-            "csrf_token": authenticated_session.csrf_token,
-            "provider": get_runtime_status(),
-            "can_logout": True,
-        })
+        response = JSONResponse(
+            {
+                "authenticated": True,
+                "csrf_token": authenticated_session.csrf_token,
+                "provider": get_runtime_status(),
+                "can_logout": True,
+                "max_input_chars": get_max_input_chars(),
+            }
+        )
         set_cookie(response, authenticated_session)
         return response
 
@@ -251,14 +262,14 @@ def create_app(chat_func=chat) -> Any:
     @app.get("/api/history", include_in_schema=False)
     async def history(request: Request) -> dict[str, Any]:
         session = existing_session(request, authenticated=True)
-        with session.lock:
+        async with session.lock:
             return {"messages": list(session.history)}
 
     @app.post("/api/reset", include_in_schema=False)
     async def reset(request: Request) -> Response:
         session = existing_session(request, authenticated=True)
         require_csrf(request, session)
-        with session.lock:
+        async with session.lock:
             session.history.clear()
         return Response(status_code=204)
 
@@ -283,22 +294,46 @@ def create_app(chat_func=chat) -> Any:
         if not capacity.acquire(blocking=False):
             raise HTTPException(status_code=503, detail="Support queue is full.")
         try:
-            async with slots:
-                await asyncio.to_thread(session.lock.acquire)
-                try:
-                    response_text = await asyncio.to_thread(chat_func, message, list(session.history))
+            async with session.lock:
+                async with slots:
+                    provider_task = asyncio.create_task(
+                        asyncio.to_thread(chat_func, message, list(session.history))
+                    )
+                    try:
+                        response_text = await asyncio.shield(provider_task)
+                    except asyncio.CancelledError:
+                        # Cancelling the HTTP task does not stop a running thread. Keep
+                        # the session and capacity permits until the provider finishes.
+                        while not provider_task.done():
+                            try:
+                                await asyncio.shield(provider_task)
+                            except asyncio.CancelledError:
+                                continue
+                            except Exception:
+                                break
+                        if not provider_task.cancelled():
+                            try:
+                                provider_task.result()
+                            except Exception as exc:
+                                LOGGER.warning("Chat request failed: %s", exc.__class__.__name__)
+                        raise
+                    except Exception as exc:
+                        LOGGER.warning("Chat request failed: %s", exc.__class__.__name__)
+                        raise HTTPException(
+                            status_code=502, detail="Support is unavailable. Try again later."
+                        ) from None
                     safe_response = redact_sensitive_text(response_text)
                     if is_memory_reset_message(message):
                         session.history.clear()
                     else:
-                        session.history.extend([
-                            {"role": "user", "content": redact_sensitive_text(message)},
-                            {"role": "assistant", "content": safe_response},
-                        ])
+                        session.history.extend(
+                            [
+                                {"role": "user", "content": redact_sensitive_text(message)},
+                                {"role": "assistant", "content": safe_response},
+                            ]
+                        )
                         session.history = session.history[-MAX_HISTORY_MESSAGES:]
                     return JSONResponse({"response": safe_response})
-                finally:
-                    session.lock.release()
         finally:
             capacity.release()
 
@@ -309,7 +344,9 @@ def launch_app() -> None:
     try:
         import uvicorn
     except ImportError as exc:
-        raise RuntimeError("Install runtime dependencies with: pip install -r requirements.lock") from exc
+        raise RuntimeError(
+            "Install runtime dependencies with: pip install -r requirements.lock"
+        ) from exc
     uvicorn.run(
         create_app(),
         host=get_server_name(),

@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -10,7 +11,6 @@ import httpx
 
 from it_support.service import chat
 from it_support.web import create_app
-
 
 BASE_ENV = {
     "APP_ENV": "test",
@@ -242,6 +242,63 @@ class WebIntegrationTests(unittest.TestCase):
                         {item["content"] for item in history if item["role"] == "user"},
                         {f"issue {i}" for i in range(6)},
                     )
+
+        with patch.dict(os.environ, BASE_ENV, clear=True):
+            asyncio.run(exercise())
+
+    def test_cancelled_request_holds_session_until_provider_finishes(self):
+        started = threading.Event()
+        release = threading.Event()
+        calls = []
+
+        def answer(message, history):
+            calls.append(message)
+            if message == "first":
+                started.set()
+                release.wait(timeout=2)
+                raise RuntimeError("private-provider-secret")
+            return str(len(history))
+
+        async def exercise():
+            app = create_app(chat_func=answer)
+            async with app.router.lifespan_context(app):
+                transport = httpx.ASGITransport(app=app)
+                async with httpx.AsyncClient(
+                    transport=transport, base_url="http://testserver"
+                ) as client:
+                    token = (await client.get("/api/session")).json()["csrf_token"]
+                    first = asyncio.create_task(
+                        client.post(
+                            "/api/chat",
+                            json={"message": "first"},
+                            headers=csrf_headers(token),
+                        )
+                    )
+                    self.assertTrue(await asyncio.to_thread(started.wait, 1))
+                    first.cancel()
+                    await asyncio.sleep(0.02)
+                    second = asyncio.create_task(
+                        client.post(
+                            "/api/chat",
+                            json={"message": "second"},
+                            headers=csrf_headers(token),
+                        )
+                    )
+                    try:
+                        await asyncio.sleep(0.02)
+                        self.assertFalse(first.done())
+                        self.assertEqual(calls, ["first"])
+                        self.assertFalse(second.done())
+                    finally:
+                        release.set()
+                    with self.assertLogs("it_support", level="WARNING") as logged:
+                        with self.assertRaises(asyncio.CancelledError):
+                            await first
+                    self.assertNotIn("private-provider-secret", str(logged.output))
+                    response = await second
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json()["response"], "0")
+                    self.assertEqual(calls, ["first", "second"])
 
         with patch.dict(os.environ, BASE_ENV, clear=True):
             asyncio.run(exercise())

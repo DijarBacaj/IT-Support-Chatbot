@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.3.0 - 2026-11-05
+## 0.3.0 - 2026-11-23
 
 - Documented runnable local checks, 60 multilingual evaluation scenarios, and measured limitations.
 - Added HTTP and concurrency regression tests; protected untrusted session memory and anonymous rate-limit identity.
+- Kept concurrency permits until canceled provider calls finish, with a regression test.
 - Added process-local, content-free provider timing, error, and token aggregates.
 - Replaced Gradio with a small FastAPI browser interface and refreshed the hashed lock, removing Pillow and its reported advisories.
 

@@ -31,10 +31,12 @@ function addMessage(role, text) {
   bubble.textContent = text; // Never interpret model or user content as HTML.
   messages.appendChild(bubble);
   messages.scrollTop = messages.scrollHeight;
+  return bubble;
 }
 
 async function showChat(session) {
   csrfToken = session.csrf_token;
+  messageInput.maxLength = session.max_input_chars;
   loginView.hidden = true;
   chatView.hidden = false;
   document.getElementById("logout-button").hidden = !session.can_logout;
@@ -82,7 +84,7 @@ chatForm.addEventListener("submit", async (event) => {
   busy = true;
   document.getElementById("send-button").disabled = true;
   status.textContent = "Working on your question…";
-  addMessage("user", message);
+  const pendingBubble = addMessage("user", message);
   messageInput.value = "";
   try {
     const result = await request("api/chat", {
@@ -91,7 +93,11 @@ chatForm.addEventListener("submit", async (event) => {
     });
     addMessage("assistant", result.response);
     status.textContent = "";
-  } catch (error) { status.textContent = error.message || "Request failed."; }
+  } catch (error) {
+    pendingBubble.remove();
+    messageInput.value = message;
+    status.textContent = error.message || "Request failed.";
+  }
   finally { busy = false; document.getElementById("send-button").disabled = false; messageInput.focus(); }
 });
 

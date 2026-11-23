@@ -94,6 +94,8 @@ python it_support_agent.py
 
 Open [http://127.0.0.1:7860](http://127.0.0.1:7860). Stop the server with `Ctrl+C`.
 
+If port `7860` is already in use, stop the earlier server or set `APP_SERVER_PORT=7861` in `.env`, then open [http://127.0.0.1:7861](http://127.0.0.1:7861).
+
 `--check` validates application and provider settings. For Ollama it also checks connectivity and model availability. For OpenAI it checks configuration without making a model request.
 
 ## Example interaction
@@ -110,9 +112,10 @@ For a deterministic safety example, enter **â€œMy laptop has smoke and sparks.â€
 
 ## Verify it yourself
 
-After installing the runtime dependencies, run:
+After installing the runtime dependencies, install the HTTP test client and run:
 
 ```text
+python -m pip install -r requirements-test.txt
 python -m unittest -v
 python -m evals.run
 ```
@@ -176,7 +179,7 @@ FastAPI serves the interface with trusted-host validation, login throttling, bro
 | [`metrics.py`](it_support/metrics.py) | Thread-safe aggregate latency, errors, and token counts |
 | [`web.py`](it_support/web.py) | Browser API, sessions, and FastAPI/Uvicorn runtime |
 
-The CLI remains in `it_support_agent.py`; `run_ollama_agent.py` provides an Ollama-oriented entry point. Tests live in `test_it_support_agent.py` and `test_regressions.py`.
+The CLI remains in `it_support_agent.py`; `run_ollama_agent.py` provides an Ollama-oriented entry point. Tests live in `test_it_support_agent.py`, `test_regressions.py`, and `test_web.py`.
 
 ## Privacy and deployment
 
